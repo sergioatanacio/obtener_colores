@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extractor de Paleta de Colores de Imagen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-4">Extractor de Paleta de Colores de Imagen</h1>
+        <div class="mb-4">
+            <input type="file" id="imageInput" accept="image/*" class="hidden">
+            <label for="imageInput" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 cursor-pointer">Cargar Imagen</label>
+            <span class="ml-4">o pega una imagen con Ctrl+V</span>
+        </div>
+        <div id="imagePreview" class="mb-4"></div>
+        <button id="extractColorsButton" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 mb-4 hidden">Extraer Colores</button>
+        <button id="copyAllColorsButton" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-4 hidden">Copiar Todos los Colores</button>
+        <div id="colorPalette" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4"></div>
+    </div>
+    <div id="toast" class="toast"></div>
+
+    <script>
+        let loadedImage = null;
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        function extractColors(image, numColors = 50) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.drawImage(image, 0, 0, image.width, image.height);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            const colors = new Set();
+
+            while (colors.size < numColors) {
+                const randomIndex = Math.floor(Math.random() * imageData.length / 4) * 4;
+                const hex = rgbToHex(imageData[randomIndex], imageData[randomIndex + 1], imageData[randomIndex + 2]);
+                colors.add(hex);
+            }
+
+            return Array.from(colors);
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.opacity = 1;
+            setTimeout(() => {
+                toast.style.opacity = 0;
+            }, 2000);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(`Copiado: ${text}`);
+            }, (err) => {
+                console.error('Error al copiar: ', err);
+            });
+        }
+
+        function displayColorPalette(colors) {
+            const palette = document.getElementById('colorPalette');
+            palette.innerHTML = '';
+            colors.forEach(color => {
+                const colorBox = document.createElement('div');
+                colorBox.className = 'relative h-24 rounded flex flex-col items-center justify-end p-2 cursor-pointer';
+                colorBox.style.backgroundColor = color;
+                
+                const colorCode = document.createElement('span');
+                colorCode.className = 'bg-white px-2 py-1 rounded text-sm mb-2';
+                colorCode.textContent = color;
+                
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'absolute top-1 right-1 bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600';
+                deleteButton.textContent = 'X';
+                deleteButton.onclick = (e) => {
+                    e.stopPropagation();
+                    colorBox.remove();
+                };
+                
+                colorBox.appendChild(colorCode);
+                colorBox.appendChild(deleteButton);
+                colorBox.onclick = () => copyToClipboard(color);
+                palette.appendChild(colorBox);
+            });
+            document.getElementById('copyAllColorsButton').classList.remove('hidden');
+        }
+
+        function handleImage(imageFile) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                loadedImage = new Image();
+                loadedImage.onload = function() {
+                    const imagePreview = document.getElementById('imagePreview');
+                    imagePreview.innerHTML = '';
+                    imagePreview.appendChild(loadedImage);
+                    document.getElementById('extractColorsButton').classList.remove('hidden');
+                }
+                loadedImage.src = event.target.result;
+            }
+            reader.readAsDataURL(imageFile);
+        }
+
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                handleImage(e.target.files[0]);
+            }
+        });
+
+        document.addEventListener('paste', function(e) {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    handleImage(blob);
+                    break;
+                }
+            }
+        });
+
+        document.getElementById('extractColorsButton').addEventListener('click', function() {
+            if (loadedImage) {
+                const colors = extractColors(loadedImage);
+                displayColorPalette(colors);
+            }
+        });
+
+        document.getElementById('copyAllColorsButton').addEventListener('click', function() {
+            const colorBoxes = document.querySelectorAll('#colorPalette > div');
+            const colors = Array.from(colorBoxes).map(box => box.querySelector('span').textContent);
+            copyToClipboard(colors.join('\n'));
+        });
+    </script>
+</body>
+</html>
